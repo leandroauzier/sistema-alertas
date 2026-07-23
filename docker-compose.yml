@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment: { POSTGRES_USER: alerts, POSTGRES_PASSWORD: alerts, POSTGRES_DB: alerts }
+  api:
+    build: .
+    ports: ['3000:3000']
+    environment:
+      DATABASE_URL: postgresql://alerts:alerts@postgres:5432/alerts?schema=public
+      ADMIN_API_KEY: change-me
+      NODE_ENV: development
+    depends_on: [postgres]
+  mock-consumer:
+    build: .
+    command: ['node', 'dist/examples/mock-consumer/server.js']
+    ports: ['4001:4001']

@@ -1,0 +1,159 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum DeliveryStatus {
+  PENDING
+  PROCESSING
+  DELIVERED
+  RETRYING
+  FAILED
+  DEAD_LETTER
+}
+enum AuthenticationType {
+  NONE
+  API_KEY_HEADER
+  BEARER_TOKEN
+  HMAC_SHA256
+}
+
+model SourceSystem {
+  id String @id @default(uuid())
+  code String @unique
+  name String
+  connectorType String
+  baseUrl String?
+  configuration Json?
+  active Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  monitoredEntities MonitoredEntity[]
+  events CanonicalEvent[]
+}
+model ConsumerSystem {
+  id String @id @default(uuid())
+  code String @unique
+  name String
+  deliveryType String
+  webhookUrl String?
+  authenticationType AuthenticationType @default(NONE)
+  authenticationConfig Json?
+  active Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deliveries Delivery[]
+}
+model MonitoredEntity {
+  id String @id @default(uuid())
+  sourceSystemId String
+  externalId String
+  entityType String
+  reference String?
+  syncFrequencySeconds Int @default(60)
+  nextSyncAt DateTime @default(now())
+  lastSyncAt DateTime?
+  consecutiveFailures Int @default(0)
+  active Boolean @default(true)
+  metadata Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  sourceSystem SourceSystem @relation(fields: [sourceSystemId], references: [id])
+  snapshots EntitySnapshot[]
+  @@index([active, nextSyncAt])
+}
+model EntitySnapshot {
+ id String @id @default(uuid())
+ monitoredEntityId String
+ hash String
+ data Json
+ capturedAt DateTime @default(now())
+ monitoredEntity MonitoredEntity @relation(fields: [monitoredEntityId], references: [id])
+}
+model CanonicalEvent {
+ id String @id @default(uuid())
+ schemaVersion String
+ sourceSystemId String
+ eventType String
+ externalEntityId String
+ entityType String
+ idempotencyKey String @unique
+ payload Json
+ occurredAt DateTime
+ correlationId String
+ createdAt DateTime @default(now())
+ sourceSystem SourceSystem @relation(fields: [sourceSystemId], references: [id])
+ notifications Notification[]
+}
+model AlertRule {
+ id String @id @default(uuid())
+ name String
+ eventType String
+ conditions Json
+ severity String
+ titleTemplate String
+ messageTemplate String
+ recipientStrategy String
+ consumerSystemIds Json
+ active Boolean @default(true)
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+}
+model Notification {
+ id String @id @default(uuid())
+ eventId String
+ title String
+ message String
+ severity String
+ sourceCode String
+ eventType String
+ recipientUserId String?
+ recipientDepartmentId String?
+ reference Json?
+ createdAt DateTime @default(now())
+ event CanonicalEvent @relation(fields: [eventId], references: [id])
+ reads NotificationRead[]
+ deliveries Delivery[]
+}
+model NotificationRead {
+ id String @id @default(uuid())
+ notificationId String
+ userId String
+ readAt DateTime @default(now())
+ notification Notification @relation(fields: [notificationId], references: [id])
+ @@unique([notificationId, userId])
+}
+model Delivery {
+ id String @id @default(uuid())
+ notificationId String
+ consumerSystemId String
+ status DeliveryStatus @default(PENDING)
+ attempts Int @default(0)
+ maxAttempts Int @default(5)
+ nextAttemptAt DateTime @default(now())
+ correlationId String
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+ notification Notification @relation(fields: [notificationId], references: [id])
+ consumerSystem ConsumerSystem @relation(fields: [consumerSystemId], references: [id])
+ @@unique([notificationId, consumerSystemId])
+}
+model AuditLog {
+ id String @id @default(uuid())
+ actorType String
+ action String
+ entityType String
+ correlationId String
+ createdAt DateTime @default(now())
+}
+model MockEntity {
+ id String @id @default(uuid())
+ externalId String @unique
+ entityType String
+ reference String?
+ data Json
+ updatedAt DateTime @updatedAt
+}
